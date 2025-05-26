@@ -1,4 +1,26 @@
-console.log('Test');
+/** Sample rate of the audio context */
+const SAMPLE_RATE = 48000;
+/** Number of channels for the audio context */
+const NUM_CHANNELS = 2;
+/** 16 bit audio data */
+const BIT_DEPTH = 16;
+/** Number of bytes per audio sample */
+const BYTES_PER_SAMPLE = BIT_DEPTH / 8;
+/** 20ms Opus frame duration */
+const FRAME_DURATION = 20;
+/** Duration of each audio frame in seconds */
+const FRAME_DURATION_SECONDS = FRAME_DURATION / 1000;
+/**
+ * Size in bytes of each frame of audio
+ * We stream audio to the main context as 16bit PCM data
+ * At 48KHz with a frame duration of 20ms (or 0.02s) and a stereo signal
+ * our `frameSize` is calculated by:
+ * `SAMPLE_RATE * FRAME_DURATION_SECONDS * NUM_CHANNELS / BYTES_PER_SAMPLE`
+ * or:
+ * `48000 * 0.02 * 2 / 2 = 960`
+ */
+const FRAME_SIZE =
+  (SAMPLE_RATE * FRAME_DURATION_SECONDS * NUM_CHANNELS) / BYTES_PER_SAMPLE;
 
 async function createCapture(){
   try {
@@ -7,8 +29,6 @@ async function createCapture(){
         window.API.setupAudioCapture(resolve);
       }
     );
-
-    console.log('[DEBUG] Got constraints:', constraints);
 
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -20,35 +40,75 @@ async function createCapture(){
       video: false
     });
 
-    console.log('[DEBUG] Audio stream obtained:', stream);
-    console.log('[DEBUG] Audio tracks:', stream.getAudioTracks());
-
     const audioContext = new AudioContext();
-    console.log('[DEBUG] AudioContext created with sample rate:', audioContext.sampleRate);
+    const audioOutputNode = audioContext.createGain();
 
+    await audioContext.audioWorklet.addModule("./PCMStream.worklet.js");
+    const pcmStreamNode = new AudioWorkletNode(
+      audioContext,
+      "pcm-stream",
+      {
+        parameterData: {
+          bufferSize: FRAME_SIZE
+        },
+        channelCount: NUM_CHANNELS,
+        channelCountMode: "explicit",
+        channelInterpretation: "speakers"
+
+      }
+    );
+
+    pcmStreamNode.port.onmessage = (event) => {
+      //console.log(event);
+    }
+    pcmStreamNode.port.onmessageerror = (event) => {
+      console.error("PCM stream error:", event);
+    };
+
+    audioOutputNode.connect(pcmStreamNode);
+
+    //createLocalLoopback(audioContext, audioOutputNode);
+
+    const output = audioContext.createGain();
     const audioSource = audioContext.createMediaStreamSource(stream);
-    const analyser = audioContext.createAnalyser();
 
-    analyser.fftSize = 256;
-    analyser.smoothingTimeConstant = 0;
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
+    audioSource.connect(output);
 
-    audioSource.connect(analyser);
-    analyser.connect(audioContext.destination);
-
-    console.log('Base latency:', audioContext.baseLatency);
-    setInterval(() => {
-      analyser.getByteFrequencyData(dataArray);
-      const audioData = Array.from(dataArray);
-      const average = (audioData.reduce((a, b) => a + b, 0)) / audioData.length;
-      console.log('[AUDIO DATA]', average);
-    }, 1000);
+    output.connect(audioOutputNode);
 
     console.log('Audio capture started');
+    return {
+      audioContext,
+      audioOutputNode,
+    }
   } catch (e) {
     console.error('Audio capture failed:', e);
   }
 }
 
-createCapture().catch(console.error);
+function createLocalLoopback(audioContext: AudioContext, audioOutputNode: GainNode) {
+  console.log('Creating local loopback.');
+  const mediaDestination = audioContext.createMediaStreamDestination();
+  audioOutputNode.connect(mediaDestination);
+
+  const audioOutputElement = document.createElement("audio");
+  document.body.appendChild(audioOutputElement);
+  audioOutputElement.srcObject = mediaDestination.stream;
+  audioOutputElement.onloadedmetadata = async () => {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await audioOutputElement.play();
+    console.log('Audio loopback active.');
+  }
+
+  return audioOutputElement;
+}
+
+createCapture()
+  .then((capture) => {
+    document.getElementById('start-loopback')?.addEventListener("click", () => {
+      if(!capture) return;
+      createLocalLoopback(capture.audioContext, capture.audioOutputNode);
+    })
+  })
+  .catch(console.error);
+

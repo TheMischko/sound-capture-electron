@@ -40,6 +40,7 @@ app.on("ready", async () => {
       contextIsolation: true,
     }
   })
+  youtubeTab.webContents.setAudioMuted(true);
 
   win.contentView.addChildView(youtubeTab);
   youtubeTab.webContents.openDevTools();

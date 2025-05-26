@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "build/index.js",
   "scripts": {
-    "compile": "tsc && copyfiles -f src/index.html build",
+    "copyfiles": "copyfiles -f src/index.html build && copyfiles -f src/PCMStream.worklet.js build",
+    "compile": "tsc && npm run copyfiles",
     "start": "npm run compile && electron build/index.js"
   },
   "private": true,
