@@ -1,4 +1,5 @@
 import {contextBridge, ipcRenderer} from "electron";
+import {AddressInfo} from "ws";
 
 const setupAudioCapture = (callback: (constrains: any) => void) => {
   ipcRenderer.on("setup-audio-capture", (_, constraints) => {
@@ -6,8 +7,13 @@ const setupAudioCapture = (callback: (constrains: any) => void) => {
   })
 }
 
+const getWebSocketAddress = (): Promise<AddressInfo> => {
+  return ipcRenderer.invoke('get-websocket')
+}
+
 const api = {
-  setupAudioCapture
+  setupAudioCapture,
+  getWebSocketAddress
 };
 
 declare global {

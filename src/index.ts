@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain,IpcMainEvent, WebContentsView, desktopCapturer } from "electron";
 import * as path from "node:path";
+import {RawData, WebSocketServer, WebSocket} from "ws";
 
 const indexHTML = path.join(__dirname, "index.html");
 
@@ -16,7 +17,22 @@ async function setupAudioCapture(window: BrowserWindow, captureTab: WebContentsV
   }
 }
 
+function setupWebsocketServer(messageCallback?: (msg: RawData) => Promise<void>){
+  const websocketServer = new WebSocketServer({ port: 17253 });
+  ipcMain.handle("get-websocket", () => websocketServer.address());
+
+  websocketServer.on("connection", async (socket: WebSocket) => {
+    socket.on("message", async (data: RawData) => {
+      await (messageCallback ? messageCallback(data) : new Promise<void>((resolve) => resolve()));
+    })
+  })
+}
+
 app.on("ready", async () => {
+  setupWebsocketServer(async (data) => {
+    return;
+  });
+
   const win = new BrowserWindow({
     width: 1640,
     height: 720,

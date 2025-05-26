@@ -30,6 +30,8 @@ async function createCapture(){
       }
     );
 
+    const webSocket = await connectToWebSocketServer();
+
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         mandatory: {
@@ -59,15 +61,13 @@ async function createCapture(){
     );
 
     pcmStreamNode.port.onmessage = (event) => {
-      //console.log(event);
+      webSocket.send(event.data);
     }
     pcmStreamNode.port.onmessageerror = (event) => {
       console.error("PCM stream error:", event);
     };
 
     audioOutputNode.connect(pcmStreamNode);
-
-    //createLocalLoopback(audioContext, audioOutputNode);
 
     const output = audioContext.createGain();
     const audioSource = audioContext.createMediaStreamSource(stream);
@@ -95,12 +95,25 @@ function createLocalLoopback(audioContext: AudioContext, audioOutputNode: GainNo
   document.body.appendChild(audioOutputElement);
   audioOutputElement.srcObject = mediaDestination.stream;
   audioOutputElement.onloadedmetadata = async () => {
-    await new Promise(resolve => setTimeout(resolve, 1000));
     await audioOutputElement.play();
     console.log('Audio loopback active.');
   }
 
   return audioOutputElement;
+}
+
+async function connectToWebSocketServer(): Promise<WebSocket> {
+  const address = await window.API.getWebSocketAddress();
+  const ws = new WebSocket(`ws://localhost:${address.port}`);
+  ws.onopen = () => {
+    console.log(
+      `Websocket connection opened at: 'ws://localhost:${address.port}'`,
+    );
+  }
+  ws.addEventListener("close", (event) => {
+    console.log(`WebSocket closed with code ${event.code}`);
+  })
+  return ws;
 }
 
 createCapture()
