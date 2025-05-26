@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "es5",
+    "module": "commonjs",
+    "strict": true,
+    "esModuleInterop": true,
+    "outDir": "./build",
+  },
+  "files": [
+    "src/index.ts",
+    "src/preload.ts",
+    "src/capture.ts"
+  ]
+}
