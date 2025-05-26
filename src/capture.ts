@@ -116,6 +116,10 @@ async function connectToWebSocketServer(): Promise<WebSocket> {
   return ws;
 }
 
+async function createDiscordStream(): Promise<void> {
+
+}
+
 createCapture()
   .then((capture) => {
     document.getElementById('start-loopback')?.addEventListener("click", () => {
